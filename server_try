@@ -89,12 +89,12 @@ while True :
             ready, = ready
             assert ready[0] == sconn.fileno()
             ready = ready[1]
-            if select.POLLIN & ready != 0 :
-                readable = True
+            readable = select.POLLIN & ready != 0
+            if readable :
                 need_readable = False
             #end if
-            if select.POLLOUT & ready != 0 :
-                writable = True
+            writable = select.POLLOUT & ready != 0
+            if writable :
                 need_writable = False
             #end if
             assert need_readable <= readable and need_writable <= writable
