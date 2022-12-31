@@ -90,9 +90,14 @@ while True :
         #end if
         try :
             if state == STATE.NEED_HANDSHAKE :
-                sconn.do_handshake()
-                sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
-                state = STATE.RECEIVE_REQUEST
+                try :
+                    sconn.do_handshake()
+                    sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+                    state = STATE.RECEIVE_REQUEST
+                except ssl.SSLError as fail :
+                    sys.stderr.write("handshake failed: %s\n" % str(fail))
+                    state = STATE.CLOSE
+                #end try
             elif state == STATE.RECEIVE_REQUEST :
                 data = sconn.recv(128)
                 sys.stderr.write("data received = %s\n" % repr(data))
