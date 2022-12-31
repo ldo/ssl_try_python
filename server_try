@@ -69,6 +69,7 @@ while True :
     ready = ready[1]
     assert select.POLLIN & ready != 0
     conn = listen.accept()[0]
+    conn.setblocking(False)
     sconn = sctx.wrap_socket(conn, server_side = True, do_handshake_on_connect = False)
     need_readable = need_writable = False
     state = STATE.NEED_HANDSHAKE
@@ -103,6 +104,9 @@ while True :
                     sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
                     state = STATE.RECEIVE_REQUEST
                 except ssl.SSLError as fail :
+                    if isinstance(fail, (ssl.SSLWantReadError, ssl.SSLWantWriteError)) :
+                        raise # pass to common handler
+                    #end if
                     sys.stderr.write("handshake failed: %s\n" % str(fail))
                     state = STATE.CLOSE
                 #end try
