@@ -71,33 +71,30 @@ while True :
     conn = listen.accept()[0]
     sconn = sctx.wrap_socket(conn, server_side = True, do_handshake_on_connect = False)
     need_readable = need_writable = False
-    readable = writable = False
     state = STATE.NEED_HANDSHAKE
     while True :
-        if need_readable > readable or need_writable > writable :
-            sys.stderr.write("server readable/writable = (%s, %s), need = (%s, %s)\n" % (readable, writable, need_readable, need_writable))
+        if need_readable or need_writable :
+            sys.stderr.write("server need readable/writable = (%s, %s)\n" % (need_readable, need_writable))
             poll = select.poll()
             poll.register \
               (
                 sconn,
-                    (0, select.POLLIN)[need_readable > readable]
+                    (0, select.POLLIN)[need_readable]
                 |
-                    (0, select.POLLOUT)[need_writable > writable]
+                    (0, select.POLLOUT)[need_writable]
               )
             ready = poll.poll()
             assert len(ready) == 1
             ready, = ready
             assert ready[0] == sconn.fileno()
             ready = ready[1]
-            readable = select.POLLIN & ready != 0
-            if readable :
+            if select.POLLIN & ready != 0 :
                 need_readable = False
             #end if
-            writable = select.POLLOUT & ready != 0
-            if writable :
+            if select.POLLOUT & ready != 0 :
                 need_writable = False
             #end if
-            assert need_readable <= readable and need_writable <= writable
+            assert not need_readable and not need_writable
         #end if
         try :
             if state == STATE.NEED_HANDSHAKE :
