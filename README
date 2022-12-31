@@ -7,6 +7,10 @@ between machines that you control, not between you and the general
 public. So you are free to create your own CA certificate, and install
 it for use on these machines.
 
+
+Certificate Setup
+=================
+
 The details of certificate setup assume you are using
 [OpenSSL](https://www.openssl.org/) or similar.
 
@@ -91,6 +95,10 @@ actual certificates:
         -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
         -in auth/server.req -days 30 -out auth/server.crt
 
+
+Running The Programs
+====================
+
 Finally, you are ready to actually run the server and client scripts.
 The example protocol is absolutely trivial, and just involves the
 client sending an integer to the server, which adds 1 to it and sends
@@ -114,3 +122,24 @@ and watch the messages.
 
 After the client terminates, the server keeps running, so that it can accept
 more client connections. To stop it, type CTRL/C.
+
+
+Other Things To Try
+===================
+
+The scripts as written also allow you to omit passing a certificate and
+key file, though you still have to pass the CA certificate. If you do this,
+you should see the other end reject the connection, because the TLS verification
+mode is set to require a certificate.
+
+For fun, try creating a second CA, and use it to sign the same certificate
+requests to create new, alternative certificates. Pass the alternative
+CA and certificate (keeping the same key file) to one end, and see how
+the other end reacts--it should fail on the authentication handshake,
+because it doesn’t recognize the other CA.
+
+Of course, passing the same alternative CA and certs to both ends should
+work fine.
+
+Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
+2022 December 31
