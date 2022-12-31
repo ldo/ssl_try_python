@@ -1,0 +1,104 @@
+#!/usr/bin/python3
+#+
+# Example use of Python’s ssl module: client-side.
+# The code is written to avoid blocking on actual socket I/O, to make
+# it easier to adapt to asynchronous usage.
+#
+# See the README for details on how to set things up to run this script.
+#-
+
+import sys
+import enum
+import socket
+import select
+import ssl
+import getopt
+
+class STATE(enum.Enum) :
+    "the state of the connection protocol."
+    NEED_HANDSHAKE = 0
+    SEND_REQUEST = 1
+    RECEIVE_RESPONSE = 2
+    CLOSE = 3
+#end STATE
+
+server_addr = "127.0.0.1"
+server_port = 6420
+opts, args = getopt.getopt \
+  (
+    sys.argv[1:],
+    "",
+    []
+  )
+if len(args) != 3 :
+    raise getopt.GetoptError("usage: %s «ca-cert-file» «client-cert-file» «client-key-file»" % sys.argv[0])
+#end if
+ca_cert_file, client_cert_file, client_key_file = args
+
+conn = socket.socket(family = socket.AF_INET, type = socket.SOCK_STREAM)
+sctx = ssl.SSLContext(protocol = ssl.PROTOCOL_TLS_CLIENT)
+sctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+sctx.check_hostname = False
+sctx.load_cert_chain(client_cert_file, client_key_file)
+sctx.load_verify_locations(ca_cert_file)
+sconn = sctx.wrap_socket(conn, server_side = False, do_handshake_on_connect = False)
+sconn.connect((server_addr, server_port))
+sconn.setblocking(False)
+
+need_readable = need_writable = False
+state = STATE.NEED_HANDSHAKE
+values = [1234, 4321, 5678]
+while True :
+    if need_readable or need_writable :
+        sys.stderr.write("client need readable/writable = (%s, %s)\n" % (need_readable, need_writable))
+        poll = select.poll()
+        poll.register(sconn, (0, select.POLLIN)[need_readable] | (0, select.POLLOUT)[need_writable])
+        ready = poll.poll()
+        assert len(ready) == 1
+        ready, = ready
+        assert ready[0] == sconn.fileno()
+        ready = ready[1]
+        if select.POLLIN & ready != 0 :
+            need_readable = False
+        #end if
+        if select.POLLOUT & ready != 0 :
+            need_writable = False
+        #end if
+    #end if
+    try :
+        if state == STATE.NEED_HANDSHAKE :
+            sconn.do_handshake()
+            sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+            value = values.pop(0)
+            state = STATE.SEND_REQUEST
+        elif state == STATE.SEND_REQUEST :
+            sconn.sendall(str(value).encode())
+            state = STATE.RECEIVE_RESPONSE
+        elif state == STATE.RECEIVE_RESPONSE :
+            response = sconn.recv(128).decode()
+            sys.stderr.write("received response = %s\n" % repr(response))
+            if len(response) != 0 :
+                if len(values) != 0 :
+                    value = values.pop(0)
+                    state = STATE.SEND_REQUEST
+                else :
+                    state = STATE.CLOSE
+                #end if
+            else :
+                sys.stderr.write("EOF from server\n")
+                state = STATE.CLOSE
+            #end if
+        elif state == STATE.CLOSE :
+            sconn.shutdown(socket.SHUT_RDWR)
+            sconn.close()
+            state = None
+        #end if
+        sys.stderr.write("state is now %s\n" % repr(state))
+        if state == None :
+            break
+    except ssl.SSLWantReadError :
+        need_readable = True
+    except ssl.SSLWantWriteError :
+        need_writable = True
+    #end try
+#end while

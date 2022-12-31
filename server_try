@@ -1,0 +1,131 @@
+#!/usr/bin/python3
+#+
+# Example use of Python’s ssl module: server-side.
+# The code is written to avoid blocking on actual socket I/O, to make
+# it easier to adapt to asynchronous usage.
+#
+# See the README for details on how to set things up to run this script.
+#-
+
+import sys
+import enum
+import socket
+import select
+import ssl
+import getopt
+
+class STATE(enum.Enum) :
+    "the state of the connection protocol."
+    NEED_HANDSHAKE = 0
+    RECEIVE_REQUEST = 1
+    SEND_RESPONSE = 2
+    CLOSE = 3
+#end STATE
+
+listen_addr = "127.0.0.1"
+listen_port = 6420
+opts, args = getopt.getopt \
+  (
+    sys.argv[1:],
+    "",
+    []
+  )
+if len(args) != 3 :
+    raise getopt.GetoptError("usage: %s «ca-cert-file» «server-cert-file» «server-key-file»" % sys.argv[0])
+#end if
+ca_cert_file, server_cert_file, server_key_file = args
+
+listen = socket.socket(family = socket.AF_INET, type = socket.SOCK_STREAM)
+listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+  # must be done before bind!
+listen.bind((listen_addr, listen_port))
+listen.setblocking(False)
+listen.listen(1)
+sctx = ssl.SSLContext(protocol = ssl.PROTOCOL_TLS_SERVER)
+sctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+sctx.check_hostname = False
+sctx.load_cert_chain(server_cert_file, server_key_file)
+sctx.load_verify_locations(ca_cert_file)
+conn = None
+
+while True :
+    poll = select.poll()
+    poll.register(listen, select.POLLIN)
+    ready = poll.poll()
+    assert len(ready) == 1
+    ready, = ready
+    assert ready[0] == listen.fileno()
+    ready = ready[1]
+    assert select.POLLIN & ready != 0
+    conn = listen.accept()[0]
+    sconn = sctx.wrap_socket(conn, server_side = True, do_handshake_on_connect = False)
+    need_readable = need_writable = False
+    readable = writable = False
+    state = STATE.NEED_HANDSHAKE
+    while True :
+        if need_readable > readable or need_writable > writable :
+            sys.stderr.write("server readable/writable = (%s, %s), need = (%s, %s)\n" % (readable, writable, need_readable, need_writable))
+            poll = select.poll()
+            poll.register \
+              (
+                sconn,
+                    (0, select.POLLIN)[need_readable > readable]
+                |
+                    (0, select.POLLOUT)[need_writable > writable]
+              )
+            ready = poll.poll()
+            assert len(ready) == 1
+            ready, = ready
+            assert ready[0] == sconn.fileno()
+            ready = ready[1]
+            if select.POLLIN & ready != 0 :
+                readable = True
+                need_readable = False
+            #end if
+            if select.POLLOUT & ready != 0 :
+                writable = True
+                need_writable = False
+            #end if
+            assert need_readable <= readable and need_writable <= writable
+        #end if
+        try :
+            if state == STATE.NEED_HANDSHAKE :
+                sconn.do_handshake()
+                sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+                state = STATE.RECEIVE_REQUEST
+            elif state == STATE.RECEIVE_REQUEST :
+                data = sconn.recv(128)
+                sys.stderr.write("data received = %s\n" % repr(data))
+                if len(data) != 0 :
+                    try :
+                        val = int(data.decode())
+                    except (UnicodeDecodeError, ValueError) :
+                        val = None
+                    #end try
+                    if val != None :
+                        data = str(val + 1).encode()
+                        state = STATE.SEND_RESPONSE
+                    else :
+                        sys.stderr.write("bad value received\n")
+                        state = STATE.CLOSE
+                    #end if
+                else :
+                    state = STATE.CLOSE
+                #end if
+            elif state == STATE.SEND_RESPONSE :
+                sconn.sendall(data)
+                state = STATE.RECEIVE_REQUEST
+            elif state == STATE.CLOSE :
+                sconn.shutdown(socket.SHUT_RDWR)
+                sconn.close()
+                state = None
+                break
+            #end if
+            sys.stderr.write("state is now %s\n" % repr(state))
+        except ssl.SSLWantReadError :
+            need_readable = True
+        except ssl.SSLWantWriteError :
+            need_writable = True
+        #end try
+    #end while
+#end while

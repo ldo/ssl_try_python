@@ -1,0 +1,116 @@
+This is an example exercise in using Python’s standard [SSL
+module](https://docs.python.org/3/library/ssl.html) to set up a secure
+connection between a client and a server process, using self-signed
+certificates and two-way authentication. This kind of thing is useful
+for internal organizational use, where authentication is only needed
+between machines that you control, not between you and the general
+public. So you are free to create your own CA certificate, and install
+it for use on these machines.
+
+The details of certificate setup assume you are using
+[OpenSSL](https://www.openssl.org/) or similar.
+
+To use these programs, first you need to set up your own CA
+configuration, for example in a subdirectory of this source
+directory named `auth`:
+
+    mkdir auth
+
+Within the `auth` directory, create a minimal CA configuration file,
+for example named `test-ca.conf`, containing something like
+
+    [ca]
+    # name of actual CA section (arbitrary)
+    default_ca = CA_default
+
+    [CA_default]
+    dir = auth/test-ca
+    database = $dir/index.txt
+    new_certs_dir = $dir/new_certs
+    serial = $dir/serial
+    # default_days = validity interval if “-days” option not specified in command
+    default_days = 30
+    # default message-digest algorithm
+    default_md = default
+    # name of policy section to use
+    policy = policy_match
+
+    [policy_match]
+    # need following to ensure CN ends up in “Subject:” line for cert
+    commonName = supplied
+    # try adding following as well
+    countryName = optional
+    stateOrProvinceName = optional
+    localityName = optional
+    organizationName = optional
+    organizationalUnitName = optional
+    # according to <https://ldapwiki.com/wiki/Distinguished%20Names>,
+    # e-mail address doesn’t belong in a DN. It should be in something
+    # like a GeneralName attribute.
+    emailAddress = optional
+
+Create additional files and subdirectories as referenced in the above
+configuration:
+
+    mkdir auth/test-ca auth/test-ca/new_certs
+    touch auth/test-ca/index.txt
+
+including a starting serial number (arbitrary, but “111” seemed too short):
+
+    echo 1111 >auth/test-ca/serial
+
+Create your self-signed CA certificate, with some suitable identification
+information and validity interval:
+
+    openssl req -new -x509 \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Trust Me/CN=example.com/emailAddress=postmaster@example.com" \
+         -newkey rsa:2048 -nodes -days 365 \
+         -keyout auth/test-ca/test-ca.key -out auth/test-ca/test-ca.cert
+
+Create requests for separate client-side and server-side certificates,
+so each end can authenticate to the other:
+
+    openssl req -new \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Client/CN=example.com" \
+         -newkey rsa:2048 -nodes \
+         -keyout auth/client.key -out auth/client.req
+
+    openssl req -new \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Server/CN=example.com" \
+         -newkey rsa:2048 -nodes \
+         -keyout auth/server.key -out auth/server.req
+
+Sign the certificate requests with your CA certificate to turn them into
+actual certificates:
+
+    openssl ca -config auth/test-ca.conf \
+        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
+        -in auth/client.req -days 30 -out auth/client.crt
+
+    openssl ca -config auth/test-ca.conf \
+        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
+        -in auth/server.req -days 30 -out auth/server.crt
+
+Finally, you are ready to actually run the server and client scripts.
+The example protocol is absolutely trivial, and just involves the
+client sending an integer to the server, which adds 1 to it and sends
+the result back.
+
+For extra fun, try the two ends in different terminal sessions, so you
+can see both sets of output at once. Both of them need the CA cert
+(though not its private key!); in addition, the server needs the
+server-side cert and private key, while the client similarly takes the
+client-side ones. All of these file names are passed as command
+arguments. First, start the server (assuming the file names are as the
+examples above):
+
+    ./server_try auth/test-ca/test-ca.cert auth/server.crt auth/server.key
+
+Then, the client:
+
+    ./client_try auth/test-ca/test-ca.cert auth/client.crt auth/client.key
+
+and watch the messages.
+
+After the client terminates, the server keeps running, so that it can accept
+more client connections. To stop it, type CTRL/C.
