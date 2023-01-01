@@ -59,15 +59,15 @@ configuration:
     mkdir auth/test-ca auth/test-ca/new_certs
     touch auth/test-ca/index.txt
 
-including a starting serial number (arbitrary, but “111” seemed too short):
+including a starting serial number (seems to require at least 4 digits):
 
-    echo 1111 >auth/test-ca/serial
+    echo 1001 >auth/test-ca/serial
 
 Create your self-signed CA certificate, with some suitable identification
 information and validity interval:
 
     openssl req -new -x509 \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Trust Me/CN=example.com/emailAddress=postmaster@example.com" \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Trust Me/CN=Trust Me" \
          -newkey rsa:2048 -nodes -days 365 \
          -keyout auth/test-ca/test-ca.key -out auth/test-ca/test-ca.cert
 
@@ -75,12 +75,12 @@ Create requests for separate client-side and server-side certificates,
 so each end can authenticate to the other:
 
     openssl req -new \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Client/CN=example.com" \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Client/CN=Client" \
          -newkey rsa:2048 -nodes \
          -keyout auth/client.key -out auth/client.req
 
     openssl req -new \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Server/CN=example.com" \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Server/CN=Server" \
          -newkey rsa:2048 -nodes \
          -keyout auth/server.key -out auth/server.req
 
@@ -94,6 +94,17 @@ actual certificates:
     openssl ca -config auth/test-ca.conf \
         -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
         -in auth/server.req -days 30 -out auth/server.crt
+
+A certificate can contain all kinds of identifying information, which
+cannot be tampered with once the certificate has been signed. For
+example, the server can use the “subject” information as the
+identifying username, to look up which services the client is allowed
+to access. Such privileges could be encoded into the certificate
+itself, but then changing such information requires revoking existing
+certificates and issuing new ones. Of course, the server can have
+access to a list of the CA-unique serial numbers of revoked
+certificates, and use that to reject a certificate which has otherwise
+passed verification.
 
 
 Running The Programs
