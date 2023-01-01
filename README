@@ -13,6 +13,8 @@ Certificate Setup
 
 The details of certificate setup assume you are using
 the [OpenSSL](https://www.openssl.org/) command-line tools.
+The following takes advantage of the simplified “micro-CA”
+mode introduced in OpenSSL 3.0 from September 2021.
 
 To use these programs, let’s put the necessary certificates
 and keys in some convenient working directory:
