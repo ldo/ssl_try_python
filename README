@@ -14,86 +14,33 @@ Certificate Setup
 The details of certificate setup assume you are using
 the [OpenSSL](https://www.openssl.org/) command-line tools.
 
-To use these programs, first you need to set up your own CA
-configuration, for example in a subdirectory of this source
-directory named `auth`:
+To use these programs, let’s put the necessary certificates
+and keys in some convenient working directory:
 
     mkdir auth
 
-Within the `auth` directory, create a minimal CA configuration file,
-for example named `test-ca.conf`, containing something like
-
-    [ca]
-    # name of actual CA section (arbitrary)
-    default_ca = CA_default
-
-    [CA_default]
-    dir = auth/test-ca
-    database = $dir/index.txt
-    new_certs_dir = $dir/new_certs
-    serial = $dir/serial
-    # default_days = validity interval if “-days” option not specified in command
-    default_days = 30
-    # default message-digest algorithm
-    default_md = default
-    # name of policy section to use
-    policy = policy_match
-
-    [policy_match]
-    # need following to ensure CN ends up in “Subject:” line for cert
-    commonName = supplied
-    # try adding following as well
-    countryName = optional
-    stateOrProvinceName = optional
-    localityName = optional
-    organizationName = optional
-    organizationalUnitName = optional
-    # according to <https://ldapwiki.com/wiki/Distinguished%20Names>,
-    # e-mail address doesn’t belong in a DN. It should be in something
-    # like a GeneralName attribute.
-    emailAddress = optional
-
-Create additional files and subdirectories as referenced in the above
-configuration:
-
-    mkdir auth/test-ca auth/test-ca/new_certs
-    touch auth/test-ca/index.txt
-
-including a starting serial number (seems to require at least 4 digits):
-
-    echo 1001 >auth/test-ca/serial
-
-Create your self-signed CA certificate, with some suitable identification
-information and validity interval:
+First, create your self-signed CA certificate, with some suitable
+identification information and validity interval:
 
     openssl req -new -x509 \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Trust Me/CN=Trust Me" \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Trust Me" \
          -newkey rsa:2048 -nodes -days 365 \
-         -keyout auth/test-ca/test-ca.key -out auth/test-ca/test-ca.cert
+         -keyout auth/test-ca.key -out auth/test-ca.crt
 
-Create requests for separate client-side and server-side certificates,
-so each end can authenticate to the other:
-
-    openssl req -new \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Client/CN=Client" \
-         -newkey rsa:2048 -nodes \
-         -keyout auth/client.key -out auth/client.req
+Now create separate client-side and server-side certificates, signed
+with this common CA cert, so each end can authenticate to the other:
 
     openssl req -new \
-         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Server/CN=Server" \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Client" \
          -newkey rsa:2048 -nodes \
-         -keyout auth/server.key -out auth/server.req
+         -CA auth/test-ca.crt -CAkey auth/test-ca.key \
+         -keyout auth/client.key -out auth/client.crt
 
-Sign the certificate requests with your CA certificate to turn them into
-actual certificates:
-
-    openssl ca -config auth/test-ca.conf \
-        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
-        -in auth/client.req -days 30 -out auth/client.crt
-
-    openssl ca -config auth/test-ca.conf \
-        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
-        -in auth/server.req -days 30 -out auth/server.crt
+    openssl req -new \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Server" \
+         -newkey rsa:2048 -nodes \
+         -CA auth/test-ca.crt -CAkey auth/test-ca.key \
+         -keyout auth/server.key -out auth/server.crt
 
 A certificate can contain all kinds of identifying information, which
 cannot be tampered with once the certificate has been signed. For
@@ -123,11 +70,11 @@ client-side ones. All of these file names are passed as command
 arguments. First, start the server (assuming the file names are as the
 examples above):
 
-    ./server_try auth/test-ca/test-ca.cert auth/server.crt auth/server.key
+    ./server_try auth/test-ca.crt auth/server.crt auth/server.key
 
 Then, the client:
 
-    ./client_try auth/test-ca/test-ca.cert auth/client.crt auth/client.key
+    ./client_try auth/test-ca.crt auth/client.crt auth/client.key
 
 and watch the messages.
 
