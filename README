@@ -15,6 +15,9 @@ The details of certificate setup assume you are using
 the [OpenSSL](https://www.openssl.org/) command-line tools.
 The following takes advantage of the simplified “micro-CA”
 mode introduced in OpenSSL 3.0 from September 2021.
+If you are still running version 1.1.x of OpenSSL, see the
+accompanying `older-openssl.txt` document for details of
+how to set up and use a CA with that version.
 
 To use these programs, let’s put the necessary certificates
 and keys in some convenient working directory:
@@ -105,14 +108,14 @@ can get up to about 600,000 requests sent before the buffers in the
 Linux kernel network stack get filled with unreceived server replies, and
 further sending is blocked.
 
-For fun, try creating a second CA, and use it to sign the same certificate
-requests to create new, alternative certificates. Pass the alternative
-CA and certificate (keeping the same key file) to one end, and see how
-the other end reacts--it should fail on the authentication handshake,
-because it doesn’t recognize the other CA.
+For fun, try creating a second CA, and use it to create new,
+alternative certificates with the same identifying subject
+information. Pass the alternative CA, certificate and key file to one
+end, and see how the other end reacts--it should fail on the
+authentication handshake, because it doesn’t recognize the other CA.
 
 Of course, passing the same alternative CA and certs to both ends should
 work fine.
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2023 January 1
+2023 January 2

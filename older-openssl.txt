@@ -1,0 +1,87 @@
+This document describes how to set up and use a CA to sign your own
+certificates with version 1.1.x of the OpenSSL command-line tools.
+
+First you need to set up your own CA configuration, for example in a
+subdirectory of this source directory named `auth`:
+
+    mkdir auth
+
+Within the `auth` directory, create a minimal CA configuration file,
+for example named `test-ca.conf`, containing something like
+
+    [ca]
+    # name of actual CA section (arbitrary)
+    default_ca = CA_default
+
+    [CA_default]
+    dir = auth/test-ca
+    database = $dir/index.txt
+    new_certs_dir = $dir/new_certs
+    serial = $dir/serial
+    # default_days = validity interval if “-days” option not specified in command
+    default_days = 30
+    # default message-digest algorithm
+    default_md = default
+    # name of policy section to use
+    policy = policy_match
+
+    [policy_match]
+    # need following to ensure CN ends up in “Subject:” line for cert
+    commonName = supplied
+    # try adding following as well
+    countryName = optional
+    stateOrProvinceName = optional
+    localityName = optional
+    organizationName = optional
+    organizationalUnitName = optional
+    # according to <https://ldapwiki.com/wiki/Distinguished%20Names>,
+    # e-mail address doesn’t belong in a DN. It should be in something
+    # like a GeneralName attribute.
+    emailAddress = optional
+
+Create additional files and subdirectories as referenced in the above
+configuration:
+
+    mkdir auth/test-ca auth/test-ca/new_certs
+    touch auth/test-ca/index.txt
+
+including a starting serial number (seems to require at least 4 digits):
+
+    echo 1001 >auth/test-ca/serial
+
+Create your self-signed CA certificate, with some suitable identification
+information and validity interval:
+
+    openssl req -new -x509 \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Trust Me" \
+         -newkey rsa:2048 -nodes -days 365 \
+         -keyout auth/test-ca/test-ca.key -out auth/test-ca/test-ca.cert
+
+Create requests for separate client-side and server-side certificates,
+so each end can authenticate to the other:
+
+    openssl req -new \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Client" \
+         -newkey rsa:2048 -nodes \
+         -keyout auth/client.key -out auth/client.req
+
+    openssl req -new \
+         -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Server" \
+         -newkey rsa:2048 -nodes \
+         -keyout auth/server.key -out auth/server.req
+
+Sign the certificate requests with your CA certificate to turn them into
+actual certificates:
+
+    openssl ca -config auth/test-ca.conf \
+        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
+        -in auth/client.req -days 30 -out auth/client.crt
+
+    openssl ca -config auth/test-ca.conf \
+        -cert auth/test-ca/test-ca.cert -keyfile auth/test-ca/test-ca.key \
+        -in auth/server.req -days 30 -out auth/server.crt
+
+(The signing process will display identifying information from the
+cert request and prompt you to confirm before actually signing.) And
+that should be it. You can now try running the example programs as
+described in `README`.
