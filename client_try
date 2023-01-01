@@ -28,12 +28,21 @@ class STATE(enum.Enum) :
 
 server_addr = "127.0.0.1"
 server_port = 6420
+do_reads = do_writes = True
+orig_values = [1234, 4321, 5678]
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "",
-    []
+    ["noread", "nowrite"]
   )
+for keyword, value in opts :
+    if keyword == "--noread" :
+        do_reads = False
+    elif keyword == "--nowrite" :
+        do_writes = False
+    #end if
+#end for
 if len(args) not in (1, 3) :
     raise getopt.GetoptError("usage: %s «ca-cert-file» «client-cert-file» «client-key-file»" % sys.argv[0])
 #end if
@@ -58,7 +67,8 @@ sconn.setblocking(False)
 
 need_readable = need_writable = False
 state = STATE.NEED_HANDSHAKE
-values = [1234, 4321, 5678]
+values = list(orig_values)
+nr_sent = 0
 while True :
     if need_readable or need_writable :
         sys.stderr.write("client need readable/writable = (%s, %s)\n" % (need_readable, need_writable))
@@ -81,10 +91,23 @@ while True :
             sconn.do_handshake()
             sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
             value = values.pop(0)
-            state = STATE.SEND_REQUEST
+            if do_writes :
+                state = STATE.SEND_REQUEST
+            else :
+                state = STATE.RECEIVE_RESPONSE
+            #end if
         elif state == STATE.SEND_REQUEST :
             sconn.sendall(str(value).encode())
-            state = STATE.RECEIVE_RESPONSE
+            nr_sent += 1
+            sys.stderr.write("send[%d]: %d\n" % (nr_sent, value))
+            if do_reads :
+                state = STATE.RECEIVE_RESPONSE
+            else :
+                if len(values) == 0 :
+                    values = list(orig_values)
+                #end if
+                value = values.pop(0)
+            #end if
         elif state == STATE.RECEIVE_RESPONSE :
             response = sconn.recv(128).decode()
             sys.stderr.write("received response = %s\n" % repr(response))

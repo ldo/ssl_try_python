@@ -28,6 +28,7 @@ class STATE(enum.Enum) :
 
 listen_addr = "127.0.0.1"
 listen_port = 6420
+timeout = 5 # short value for easy testing
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
@@ -84,18 +85,23 @@ while True :
                 |
                     (0, select.POLLOUT)[need_writable]
               )
-            ready = poll.poll()
-            assert len(ready) == 1
-            ready, = ready
-            assert ready[0] == sconn.fileno()
-            ready = ready[1]
-            if select.POLLIN & ready != 0 :
-                need_readable = False
+            ready = poll.poll(round(timeout * 1000))
+            if len(ready) != 0 :
+                assert len(ready) == 1
+                ready, = ready
+                assert ready[0] == sconn.fileno()
+                ready = ready[1]
+                if select.POLLIN & ready != 0 :
+                    need_readable = False
+                #end if
+                if select.POLLOUT & ready != 0 :
+                    need_writable = False
+                #end if
+                assert not need_readable and not need_writable
+            else :
+                sys.stderr.write("timeout after %.3fs\n" % timeout)
+                state = STATE.CLOSE
             #end if
-            if select.POLLOUT & ready != 0 :
-                need_writable = False
-            #end if
-            assert not need_readable and not need_writable
         #end if
         try :
             if state == STATE.NEED_HANDSHAKE :
