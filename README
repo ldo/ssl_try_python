@@ -12,7 +12,7 @@ Certificate Setup
 =================
 
 The details of certificate setup assume you are using
-[OpenSSL](https://www.openssl.org/) or similar.
+the [OpenSSL](https://www.openssl.org/) command-line tools.
 
 To use these programs, first you need to set up your own CA
 configuration, for example in a subdirectory of this source
