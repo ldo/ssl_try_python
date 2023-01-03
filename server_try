@@ -18,6 +18,14 @@ import select
 import ssl
 import getopt
 
+class SOCK_NEED(enum.Enum) :
+    "need to wait for socket to allow I/O of this type before TLS" \
+    " communication can proceed."
+    NOTHING = 0 # I/O can proceed
+    READABLE = 1 # wait for socket to become readable
+    WRITABLE = 2 # wait for socket to become writable
+#end SOCK_NEED
+
 class STATE(enum.Enum) :
     "the state of the connection protocol."
     NEED_HANDSHAKE = 0
@@ -72,32 +80,27 @@ while True :
     conn = listen.accept()[0]
     conn.setblocking(False)
     sconn = sctx.wrap_socket(conn, server_side = True, do_handshake_on_connect = False)
-    need_readable = need_writable = False
+    sock_need = SOCK_NEED.NOTHING
     state = STATE.NEED_HANDSHAKE
     while True :
-        if need_readable or need_writable :
-            sys.stderr.write("server need readable/writable = (%s, %s)\n" % (need_readable, need_writable))
+        if sock_need != SOCK_NEED.NOTHING :
+            sys.stderr.write("server need %s\n" % sock_need)
             poll = select.poll()
             poll.register \
               (
                 sconn,
-                    (0, select.POLLIN)[need_readable]
-                |
-                    (0, select.POLLOUT)[need_writable]
+                {
+                    SOCK_NEED.READABLE : select.POLLIN,
+                    SOCK_NEED.WRITABLE : select.POLLOUT,
+                }[sock_need]
               )
             ready = poll.poll(round(timeout * 1000))
             if len(ready) != 0 :
                 assert len(ready) == 1
                 ready, = ready
                 assert ready[0] == sconn.fileno()
-                ready = ready[1]
-                if select.POLLIN & ready != 0 :
-                    need_readable = False
-                #end if
-                if select.POLLOUT & ready != 0 :
-                    need_writable = False
-                #end if
-                assert not need_readable and not need_writable
+                assert ready[1] & (select.POLLIN | select.POLLOUT) != 0
+                sock_need = SOCK_NEED.NOTHING
             else :
                 sys.stderr.write("timeout after %.3fs\n" % timeout)
                 state = STATE.CLOSE
@@ -146,9 +149,9 @@ while True :
             #end if
             sys.stderr.write("state is now %s\n" % repr(state))
         except ssl.SSLWantReadError :
-            need_readable = True
+            sock_need = SOCK_NEED.READABLE
         except ssl.SSLWantWriteError :
-            need_writable = True
+            sock_need = SOCK_NEED.WRITABLE
         #end try
     #end while
 #end while
