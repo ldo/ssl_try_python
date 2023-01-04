@@ -155,9 +155,14 @@ while True :
             elif state == STATE.SEND_RESPONSE :
                 sconn.sendall(data)
                 state = STATE.RECEIVE_REQUEST
+                req = b""
             elif state == STATE.CLOSE :
-                sconn.shutdown(socket.SHUT_RDWR)
-                sconn.close()
+                try :
+                    sconn.shutdown(socket.SHUT_RDWR)
+                    sconn.close()
+                except OSError as err :
+                    sys.stderr.write("socket shutdown error %s\n" % repr(err))
+                #end try
                 state = None
                 break
             #end if
@@ -166,6 +171,14 @@ while True :
             sock_need = SOCK_NEED.READABLE
         except ssl.SSLWantWriteError :
             sock_need = SOCK_NEED.WRITABLE
+        except ssl.SSLError as err :
+            sys.stderr.write("Unexpected SSL error %s\n" % repr(err))
+            if state != STATE.CLOSE :
+                state = STATE.CLOSE
+            else :
+                state = None
+                break
+            #end if
         #end try
     #end while
 #end while
