@@ -102,6 +102,7 @@ while True :
         if state == STATE.NEED_HANDSHAKE :
             sconn.do_handshake()
             sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+            sys.stderr.write("shared_ciphers = %s, chosen cipher = %s\n" % (sconn.shared_ciphers(), sconn.cipher()))
             sys.stderr.write("selected ALPN protocol = %s\n" % sconn.selected_alpn_protocol())
             value = values.pop(0)
             if do_writes :

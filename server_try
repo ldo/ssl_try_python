@@ -113,6 +113,7 @@ while True :
                 try :
                     sconn.do_handshake()
                     sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+                    sys.stderr.write("shared_ciphers = %s, chosen cipher = %s\n" % (sconn.shared_ciphers(), sconn.cipher()))
                     sys.stderr.write("selected ALPN protocol = %s\n" % sconn.selected_alpn_protocol())
                     state = STATE.RECEIVE_REQUEST
                 except ssl.SSLError as fail :
