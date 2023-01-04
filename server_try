@@ -116,6 +116,7 @@ while True :
                     sys.stderr.write("shared_ciphers = %s, chosen cipher = %s\n" % (sconn.shared_ciphers(), sconn.cipher()))
                     sys.stderr.write("selected ALPN protocol = %s\n" % sconn.selected_alpn_protocol())
                     state = STATE.RECEIVE_REQUEST
+                    req = b""
                 except ssl.SSLError as fail :
                     if isinstance(fail, (ssl.SSLWantReadError, ssl.SSLWantWriteError)) :
                         raise # pass to common handler
@@ -127,17 +128,26 @@ while True :
                 data = sconn.recv(128)
                 sys.stderr.write("data received = %s\n" % repr(data))
                 if len(data) != 0 :
-                    try :
-                        val = int(data.decode())
-                    except (UnicodeDecodeError, ValueError) :
-                        val = None
-                    #end try
-                    if val != None :
-                        data = str(val + 1).encode()
-                        state = STATE.SEND_RESPONSE
-                    else :
-                        sys.stderr.write("bad value received\n")
-                        state = STATE.CLOSE
+                    req += data
+                    reqend = req.find(b"\n")
+                    if reqend >= 0 :
+                        data = req[reqend + 1:]
+                        if len(data) != 0 :
+                            sys.stderr.write("leftover data after req: %s\n" % repr(data))
+                        #end if
+                        req = req[:reqend]
+                        try :
+                            val = int(req.decode())
+                        except (UnicodeDecodeError, ValueError) :
+                            val = None
+                        #end try
+                        if val != None :
+                            data = (str(val + 1) + "\n").encode()
+                            state = STATE.SEND_RESPONSE
+                        else :
+                            sys.stderr.write("bad value received\n")
+                            state = STATE.CLOSE
+                        #end if
                     #end if
                 else :
                     state = STATE.CLOSE

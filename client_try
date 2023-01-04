@@ -111,7 +111,7 @@ while True :
                 state = STATE.RECEIVE_RESPONSE
             #end if
         elif state == STATE.SEND_REQUEST :
-            sconn.sendall(str(value).encode())
+            sconn.sendall((str(value) + "\n").encode())
             nr_sent += 1
             sys.stderr.write("send[%d]: %d\n" % (nr_sent, value))
             if do_reads :
