@@ -36,6 +36,7 @@ class STATE(enum.Enum) :
 
 server_addr = "127.0.0.1"
 server_port = 6420
+application_name = "x-incr-integer" # optionally negotiated between both ends
 do_reads = do_writes = True
 orig_values = [1234, 4321, 5678]
 opts, args = getopt.getopt \
@@ -63,6 +64,7 @@ else :
 
 conn = socket.socket(family = socket.AF_INET, type = socket.SOCK_STREAM)
 sctx = ssl.SSLContext(protocol = ssl.PROTOCOL_TLS_CLIENT)
+sctx.set_alpn_protocols([application_name])
 sctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
 sctx.check_hostname = False
 if client_cert_file != None :
@@ -100,6 +102,7 @@ while True :
         if state == STATE.NEED_HANDSHAKE :
             sconn.do_handshake()
             sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+            sys.stderr.write("selected ALPN protocol = %s\n" % sconn.selected_alpn_protocol())
             value = values.pop(0)
             if do_writes :
                 state = STATE.SEND_REQUEST

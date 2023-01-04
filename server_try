@@ -36,6 +36,7 @@ class STATE(enum.Enum) :
 
 listen_addr = "127.0.0.1"
 listen_port = 6420
+application_name = "x-incr-integer" # optionally negotiated between both ends
 timeout = 5 # short value for easy testing
 opts, args = getopt.getopt \
   (
@@ -60,6 +61,7 @@ listen.bind((listen_addr, listen_port))
 listen.setblocking(False)
 listen.listen(1)
 sctx = ssl.SSLContext(protocol = ssl.PROTOCOL_TLS_SERVER)
+sctx.set_alpn_protocols([application_name])
 sctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
 sctx.check_hostname = False
 if server_cert_file != None :
@@ -111,6 +113,7 @@ while True :
                 try :
                     sconn.do_handshake()
                     sys.stderr.write("handshake done, peer cert = %s\n" % sconn.getpeercert())
+                    sys.stderr.write("selected ALPN protocol = %s\n" % sconn.selected_alpn_protocol())
                     state = STATE.RECEIVE_REQUEST
                 except ssl.SSLError as fail :
                     if isinstance(fail, (ssl.SSLWantReadError, ssl.SSLWantWriteError)) :
