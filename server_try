@@ -101,6 +101,11 @@ while True :
                 assert len(ready) == 1
                 ready, = ready
                 assert ready[0] == sconn.fileno()
+                if ready[1] & (select.POLLERR | select.POLLHUP | select.POLLRDHUP) != 0 :
+                    sys.stderr.write("connection poll error %#0x\n" % ready[1])
+                    state = None
+                    break
+                #end if
                 assert ready[1] & (select.POLLIN | select.POLLOUT) != 0
                 sock_need = SOCK_NEED.NOTHING
             else :
