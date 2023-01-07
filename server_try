@@ -141,6 +141,12 @@ while True :
                 data = sconn.recv(128)
                 sys.stderr.write("data received = %s\n" % repr(data))
                 if len(data) != 0 :
+                    if len(req) + len(data) > 255 :
+                        # prevent clients making me use too much memory
+                        sys.stderr.write("too much data received: %d + %d bytes\n" % (len(req), len(data)))
+                        state = STATE.CLOSE
+                        break
+                    #end if
                     req += data
                     reqend = req.find(b"\n")
                     if reqend >= 0 :
