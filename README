@@ -33,18 +33,19 @@ identification information and validity interval:
          -keyout auth/test-ca.key -out auth/test-ca.crt
 
 Now create separate client-side and server-side certificates, signed
-with this common CA cert, so each end can authenticate to the other:
+with this common CA cert, so each end can authenticate to the other,
+again with some suitable validity interval:
 
     openssl req -new \
          -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Client" \
          -newkey rsa:2048 -nodes \
-         -CA auth/test-ca.crt -CAkey auth/test-ca.key \
+         -CA auth/test-ca.crt -CAkey auth/test-ca.key -days 30 \
          -keyout auth/client.key -out auth/client.crt
 
     openssl req -new \
          -subj "/C=NZ/ST=Waikato/L=Hamilton/O=MegaCorp Inc/OU=Staff/CN=Server" \
          -newkey rsa:2048 -nodes \
-         -CA auth/test-ca.crt -CAkey auth/test-ca.key \
+         -CA auth/test-ca.crt -CAkey auth/test-ca.key -days 30 \
          -keyout auth/server.key -out auth/server.crt
 
 A certificate can contain all kinds of identifying information, which
@@ -118,4 +119,4 @@ Of course, passing the same alternative CA and certs to both ends should
 work fine.
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2023 January 2
+2023 January 8
